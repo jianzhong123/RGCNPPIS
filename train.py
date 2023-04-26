@@ -6,11 +6,9 @@ from sklearn.model_selection import KFold
 from SNRGCN_model import *
 
 # Path
-from SNRGCN_model import SNRGCN
-
 Dataset_Path = "./Dataset/"
 Model_Path = "./Model/"
-device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
 
 def train_one_epoch(model, data_loader):
     epoch_loss_train = 0.0
@@ -199,28 +197,53 @@ def cross_validation(all_dataframe, fold_number = 5):
     valid_auprs = []
 
     for train_index, valid_index in kfold.split(sequence_names, sequence_labels):
-        print("\n\n========== Fold " + str(fold + 1) + " ==========")
-        train_dataframe = all_dataframe.iloc[train_index, :]
-        valid_dataframe = all_dataframe.iloc[valid_index, :]
-        print("Train on", str(train_dataframe.shape[0]), "samples, validate on", str(valid_dataframe.shape[0]),
-              "samples")
+        if fold==0:
+            print("\n\n========== Fold " + str(fold + 1) + " ==========")
+            train_dataframe = all_dataframe.iloc[train_index, :]
+            valid_dataframe = all_dataframe.iloc[valid_index, :]
+            print("Train on", str(train_dataframe.shape[0]), "samples, validate on", str(valid_dataframe.shape[0]),
+                  "samples")
 
-        model = SNRGCN(LAYER, INPUT_DIM, HIDDEN_DIM, NUM_CLASSES, DROPOUT, LAMBDA, ALPHA, VARIANT)
-        if torch.cuda.is_available():
-            model.to(device)  # cuda()
+            model = GraphPPIS(LAYER, INPUT_DIM, HIDDEN_DIM, NUM_CLASSES, DROPOUT, LAMBDA, ALPHA, VARIANT)
+            if torch.cuda.is_available():
+                model.to(device)  # cuda()
 
-        if(fold>0):
-            model.load_state_dict(torch.load(Model_Path + "Fold"+str(fold)+"_best_model.pkl", map_location='cuda:2'))
-        best_epoch, valid_auc, valid_aupr = train(model, train_dataframe, valid_dataframe, fold + 1)
-        best_epochs.append(str(best_epoch))
-        valid_aucs.append(valid_auc)
-        valid_auprs.append(valid_aupr)
-        fold += 1
+            if(fold>0):
+                model.load_state_dict(torch.load(Model_Path + "Fold"+str(fold)+"_best_model.pkl", map_location='cuda:7'))
+            best_epoch, valid_auc, valid_aupr = train(model, train_dataframe, valid_dataframe, fold + 1)
+            best_epochs.append(str(best_epoch))
+            valid_aucs.append(valid_auc)
+            valid_auprs.append(valid_aupr)
+            fold += 1
 
     print("\n\nBest epoch: " + " ".join(best_epochs))
     print("Average AUC of {} fold: {:.4f}".format(fold_number, sum(valid_aucs) / fold_number))
     print("Average AUPR of {} fold: {:.4f}".format(fold_number, sum(valid_auprs) / fold_number))
     return round(sum([int(epoch) for epoch in best_epochs]) / fold_number)
+
+def train_full_model(all_dataframe, aver_epoch):
+    print("\n\nTraining a full model using all training data...\n")
+    model = GraphPPIS(LAYER, INPUT_DIM, HIDDEN_DIM, NUM_CLASSES, DROPOUT, LAMBDA, ALPHA, VARIANT)
+    if torch.cuda.is_available():
+        model.to(device)#cuda()
+
+    train_loader = DataLoader(dataset=ProDataset(all_dataframe), batch_size=BATCH_SIZE, shuffle=True, num_workers=5)
+
+    for epoch in range(NUMBER_EPOCHS):
+        print("\n========== Train epoch " + str(epoch + 1) + " ==========")
+        model.train()
+
+        epoch_loss_train_avg = train_one_epoch(model, train_loader)
+        print("========== Evaluate Train set ==========")
+        _, train_true, train_pred, _ = evaluate(model, train_loader)
+        result_train = analysis(train_true, train_pred, 0.5)
+        print("Train loss: ", epoch_loss_train_avg)
+        print("Train binary acc: ", result_train['binary_acc'])
+        print("Train AUC: ", result_train['AUC'])
+        print("Train AUPRC: ", result_train['AUPRC'])
+
+        if epoch + 1 in [aver_epoch, 45]:
+            torch.save(model.state_dict(), os.path.join(Model_Path, 'Full_model_{}.pkl'.format(epoch + 1)))
 
 
 def main():

@@ -36,7 +36,7 @@ WEIGHT_DECAY = 0
 BATCH_SIZE = 1
 NUM_CLASSES = 2  # [not bind, bind]
 NUMBER_EPOCHS = 50
-device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
+device = torch.device('cuda:7' if torch.cuda.is_available() else 'cpu')
 
 
 def embedding(sequence_name, seq, embedding_type):
@@ -98,7 +98,8 @@ def get_node_features(sequence_name):
     anchor_feature = np.load(Feature_Path + "anchor/" + sequence_name + '.npy')
     #hydrophobicity_feature,
     node_features = np.concatenate(
-        [dssp_feature, pssm_feature,  RAA_feature, hmm_feature,  anchor_feature,pro2Vec_feature,psaia_feature], axis=1)
+        #[dssp_feature, pssm_feature,  RAA_feature, hmm_feature,  anchor_feature,pro2Vec_feature,psaia_feature], axis=1)
+        [dssp_feature,pssm_feature, RAA_feature, hmm_feature, anchor_feature, pro2Vec_feature, psaia_feature], axis=1)
     #print("node",node_features.shape)
     return node_features
 
@@ -137,15 +138,16 @@ class GraphConvolution(nn.Module):
         self.out_features = out_features
         self.residual = residual
         self.weight = Parameter(torch.FloatTensor(self.in_features, self.out_features))
+        self.weight1 = Parameter(torch.FloatTensor(self.in_features, self.out_features))
         self.reset_parameters()
 
     def reset_parameters(self):
         stdv = 1. / math.sqrt(self.out_features)
         self.weight.data.uniform_(-stdv, stdv)
-
+        self.weight1.data.uniform_(-stdv, stdv)
     def aggregate(self, x, adj):
         A = adj.cpu().detach().numpy()
-        sample_num = 8
+        sample_num = 3
         mask = torch.zeros(adj.shape[0], adj.shape[0])  # .to(device)
 
         for index in range(A.shape[0]):
@@ -161,22 +163,23 @@ class GraphConvolution(nn.Module):
         num_neigh = mask.sum(1, keepdim=True)
         mask = mask.div(num_neigh).to(device)
         agg = mask.mm(x)
-        return agg
+        #mask = mask.to(device)
+        #localadj = torch.mul(adj, mask)
+        return agg#localadj
 
     def forward(self, input, adj, h0, lamda, alpha, l):
         theta = min(1, math.log(lamda / l + 1))
 
-        if l==1:
-            agg = self.aggregate(input, adj)
-            hi=torch.spmm(adj,agg)
-            r = (1 - alpha) * agg + alpha * h0
-        else:
-            hi = torch.spmm(adj, input)
-            r = (1 - alpha) * input + alpha * h0
-        support = torch.cat([hi, input], 1)
+        localadj = self.aggregate(input, adj)
+        #localhi = torch.spmm(localadj, input)
+        #localsupport = torch.cat([localhi, input], 1)
+        r = (1 - alpha) * input + alpha * h0+0.1*localadj
+        #localsupport = theta * torch.mm(localsupport, self.weight1)+(1 - theta) * r
 
+        hi = torch.spmm(adj, input)
+
+        support = torch.cat([hi, input], 1)
         output = theta * torch.mm(support, self.weight) + (1 - theta) *r
-        output = alpha*output + (1-alpha)*input
         return output
 
 class deepGCN(nn.Module):
@@ -214,9 +217,9 @@ class deepGCN(nn.Module):
         layer_inner = self.fcs[-1](layer_inner)
         return layer_inner
 
-class SNRGCN(nn.Module):
+class GraphPPIS(nn.Module):
     def __init__(self, nlayers, nfeat, nhidden, nclass, dropout, lamda, alpha, variant):
-        super(SNRGCN, self).__init__()
+        super(GraphPPIS, self).__init__()
 
         self.deep_gcn = deepGCN(nlayers=nlayers, nfeat=nfeat, nhidden=nhidden, nclass=nclass,
                                 dropout=dropout, lamda=lamda, alpha=alpha, variant=variant)
