@@ -1,5 +1,5 @@
-# GLSPPIS
-We developed a deep residual graph framework, called GLSPPIS, that combines global and local spatial features for PPI site prediction. GLSPPIS utilizes a novel residual graph connection to address the gradient vanishing problem in GCN. The residual graph connection includes node feature representation, the output of the previous layer, and local spatial features.
+# RGCNPPIS
+We propose a novel residual graph convolutional network for structure-based PPI site prediction (RGCNPPIS). Specifically, we use a GCN module to extract the global structural features from all spatial neighborhoods, and utilize the GraphSage module to extract local structural features from local spatial neighborhoods. To the best of our knowledge, this is the first work utilizing local structural features for PPI site prediction. Besides, we propose an enhanced residual graph connection enables information transfer between layers and alleviates the over-smoothing problem.
 
 ## System requirement
 ### To run the code, you need the following dependencies:
