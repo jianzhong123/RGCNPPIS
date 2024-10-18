@@ -19,3 +19,13 @@ Before run the code, you need to unzip the compressed files in the Feature folde
 ### for evaluating the performance of our model, you need to run:
     python test.py
 
+# Citation
+## Please cite our paper if you find this work useful in your research.
+
+@article{zhong2024rgcnppis,
+  title={RGCNPPIS: A Residual Graph Convolutional Network for Protein-Protein Interaction Site Prediction},
+  author={Zhong, Jian and Zhao, Haochen and Zhao, Qichang and Zhou, Ruikang and Zhang, Lishen and Guo, Fei and Wang, Jianxin},
+  journal={IEEE/ACM Transactions on Computational Biology and Bioinformatics},
+  year={2024},
+  publisher={IEEE}
+}
